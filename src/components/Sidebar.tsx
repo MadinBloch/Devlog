@@ -1,23 +1,59 @@
 import React from 'react'
+import { useApp } from '../context/AppContext'
 
-export default function Sidebar({ view, setView }: { view: string; setView: (v:string)=>void }){
-  const items = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'today', label: "Today's Work" },
-    { id: 'pending', label: 'Pending' },
-    { id: 'completed', label: 'Completed' },
-    { id: 'boards', label: 'Boards' },
-    { id: 'reports', label: 'Reports' },
-    { id: 'search', label: 'Search' },
-    { id: 'settings', label: 'Settings' }
-  ]
+const NAV: { id: string; label: string; symbol: string }[] = [
+  { id: 'dashboard', label: 'Dashboard', symbol: '▦' },
+  { id: 'today', label: "Today's Work", symbol: '◉' },
+  { id: 'pending', label: 'Pending', symbol: '◷' },
+  { id: 'completed', label: 'Completed', symbol: '✓' },
+  { id: 'reports', label: 'Reports', symbol: '▤' },
+  { id: 'boards', label: 'Boards', symbol: '▣' },
+  { id: 'search', label: 'Search', symbol: '⌕' },
+  { id: 'settings', label: 'Settings', symbol: '⚙' },
+]
+
+export default function Sidebar({ view, setView }: { view: string; setView: (v: string) => void }) {
+  const { pendingCount, completedCount, theme, setTheme } = useApp()
 
   return (
-    <aside style={{width:220,background:'var(--panel)',padding:12,borderRight:'1px solid rgba(255,255,255,0.02)'}}>
-      <div style={{fontWeight:700,marginBottom:12}}>Navigation</div>
-      {items.map(it=> (
-        <div key={it.id} onClick={()=>setView(it.id)} style={{padding:'8px 10px',borderRadius:6,background: view===it.id ? 'rgba(255,255,255,0.02)' : 'transparent',cursor:'pointer',marginBottom:6}}>{it.label}</div>
-      ))}
+    <aside className="sidebar">
+      <div className="brand">
+        <span className="brand-mark">D</span>
+        <span>DevLog</span>
+      </div>
+      <p className="workspace-label">PERSONAL WORKSPACE</p>
+      <nav>
+        {NAV.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`nav-item ${view === item.id ? 'active' : ''}`}
+            onClick={() => setView(item.id)}
+          >
+            <span className="nav-symbol">{item.symbol}</span>
+            {item.label}
+            {item.id === 'pending' && pendingCount > 0 && <b>{pendingCount}</b>}
+            {item.id === 'completed' && completedCount > 0 && <b>{completedCount}</b>}
+          </button>
+        ))}
+      </nav>
+      <div className="sidebar-bottom">
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        >
+          <span>◐</span>
+          <span>{theme === 'dark' ? 'Dark mode' : 'Light mode'}</span>
+        </button>
+        <div className="profile">
+          <span className="avatar">M</span>
+          <span>
+            <strong>Madin</strong>
+            <small>Kesari ERP developer</small>
+          </span>
+        </div>
+      </div>
     </aside>
   )
 }

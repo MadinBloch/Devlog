@@ -1,80 +1,128 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { DevLogData, Task, Board, Tag } from '../types'
 import * as storage from '../storage/local'
 import { fetchTasksFromGit, createEmptyFile, pushTasksToGit } from '../api/github'
+import { toast } from '../utils/toast'
+import { pendingTasks, completedTasks } from '../utils/helpers'
 
-const ctx = createContext<any>(null)
+type AppCtx = {
+  token: string | null
+  data: DevLogData | null
+  dirty: boolean
+  loading: boolean
+  theme: 'light' | 'dark'
+  search: string
+  setSearch: (v: string) => void
+  setTheme: (t: 'light' | 'dark') => void
+  loginWithToken: (t: string) => Promise<void>
+  logout: () => void
+  fetchRemote: (force?: boolean) => Promise<{ ok?: boolean; conflict?: boolean } | void>
+  pushLocal: () => Promise<{ ok?: boolean; sha_mismatch?: boolean } | void>
+  addTask: (partial: Partial<Task> & { title: string }) => Task | undefined
+  editTask: (id: string, changes: Partial<Task>) => void
+  softDeleteTask: (id: string) => void
+  completeTask: (id: string, opts?: { commit?: string; notes?: string; actualHours?: number }) => void
+  toggleFavorite: (id: string) => void
+  togglePin: (id: string) => void
+  startTimer: (taskId: string, estimateMinutes?: number) => void
+  stopTimer: (taskId: string, stopAndComplete?: boolean) => void
+  addBoard: (partial: Partial<Board> & { name: string }) => Board | undefined
+  editBoard: (id: string, changes: Partial<Board>) => void
+  deleteBoard: (id: string) => void
+  addTag: (partial: Partial<Tag> & { name: string }) => Tag | undefined
+  editTag: (id: string, changes: Partial<Tag>) => void
+  deleteTag: (id: string) => void
+  pendingCount: number
+  completedCount: number
+}
 
-const EMPTY_SCHEMA = ((): DevLogData => ({
-  version: 1,
-  updatedAt: new Date().toISOString(),
-  boards: [
-    { id: 'board_work', name: 'Work', color: '#0f766e', position: 0 },
-    { id: 'board_personal', name: 'Personal', color: '#0ea5a4', position: 1 }
-  ],
-  tags: [
-    { id: 'tag_bug', name: 'bug', color: '#dc2626' },
-    { id: 'tag_feature', name: 'feature', color: '#0ea5a4' }
-  ],
-  tasks: [
-    {
-      id: `task_${Date.now()}`,
-      title: 'Welcome to DevLog',
-      description: 'This is a seeded task. Edit or delete it.',
-      boardId: 'board_work',
-      tagIds: ['tag_feature'],
-      status: 'pending',
-      priority: 'medium',
-      type: 'feature',
-      workDate: null,
-      estimatedHours: null,
-      actualHours: null,
-      gitCommit: '',
-      branch: '',
-      remarks: '',
-      isFavorite: false,
-      isPinned: false,
-      timerStartedAt: null,
-      timerEstimateMinutes: null,
-      completedAt: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      deletedAt: null
-    }
-  ]
-}))
+const ctx = createContext<AppCtx | null>(null)
 
-export const AppProvider = ({ children }: any) => {
+function emptySchema(): DevLogData {
+  const now = new Date().toISOString()
+  return {
+    version: 1,
+    updatedAt: now,
+    boards: [
+      { id: 'board_work', name: 'Work', color: '#6366f1', position: 0 },
+      { id: 'board_personal', name: 'Personal', color: '#0ea5a4', position: 1 },
+    ],
+    tags: [
+      { id: 'tag_bug', name: 'bug', color: '#dc2626' },
+      { id: 'tag_feature', name: 'feature', color: '#6366f1' },
+      { id: 'tag_urgent', name: 'urgent', color: '#f59e0b' },
+    ],
+    tasks: [
+      {
+        id: `task_${Date.now()}`,
+        title: 'Welcome to DevLog',
+        description: 'Edit or delete this seeded task. Use Sync to push to GitHub.',
+        boardId: 'board_work',
+        tagIds: ['tag_feature'],
+        status: 'pending',
+        priority: 'medium',
+        type: 'feature',
+        workDate: now.slice(0, 10),
+        estimatedHours: 1,
+        actualHours: null,
+        gitCommit: '',
+        branch: '',
+        remarks: '',
+        isFavorite: true,
+        isPinned: true,
+        timerStartedAt: null,
+        timerEstimateMinutes: 30,
+        completedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      },
+    ],
+  }
+}
+
+export function AppProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(storage.getToken())
   const [data, setData] = useState<DevLogData | null>(storage.loadLocalData())
   const [sha, setSha] = useState<string | null>(storage.getSha())
-  const [dirty, setDirtyLocal] = useState<boolean>(storage.isDirty())
+  const [dirty, setDirtyLocal] = useState(storage.isDirty())
   const [loading, setLoading] = useState(false)
-  const [dataLoaded, setDataLoaded] = useState(false)
+  const [theme, setThemeState] = useState<'light' | 'dark'>(storage.getTheme())
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
-    if (token) {
-      // auto-fetch on mount after login
-      (async () => {
-        await fetchRemote()
-      })()
-    }
+    document.documentElement.classList.toggle('theme-dark', theme === 'dark')
+    document.body.classList.toggle('theme-dark', theme === 'dark')
+  }, [theme])
+
+  useEffect(() => {
+    if (token) void fetchRemote()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  function setDirty(v: boolean){
+  function setDirty(v: boolean) {
     setDirtyLocal(v)
     storage.setDirty(v)
   }
 
-  async function loginWithToken(t: string){
+  function setTheme(t: 'light' | 'dark') {
+    setThemeState(t)
+    storage.setTheme(t)
+  }
+
+  function updateData(next: DevLogData) {
+    const stamped = { ...next, updatedAt: new Date().toISOString() }
+    storage.saveLocalData(stamped)
+    setData(stamped)
+    setDirty(true)
+  }
+
+  async function loginWithToken(t: string) {
     setLoading(true)
-    try{
-      // Attempt to fetch file
-      const res: any = await fetchTasksFromGit(t)
-      if (res.notFound){
-        // create empty file with seed
-        const seed = EMPTY_SCHEMA()
+    try {
+      const res = await fetchTasksFromGit(t)
+      if ('notFound' in res && res.notFound) {
+        const seed = emptySchema()
         const created = await createEmptyFile(t, seed)
         storage.setToken(t)
         setToken(t)
@@ -84,8 +132,8 @@ export const AppProvider = ({ children }: any) => {
         setSha(created.content.sha)
         setDirty(false)
         storage.setLastSynced(new Date().toISOString())
-        setDataLoaded(true)
-      } else {
+        toast('Created tasks.json and logged in', 'success')
+      } else if ('data' in res) {
         storage.setToken(t)
         setToken(t)
         storage.saveLocalData(res.data)
@@ -94,22 +142,21 @@ export const AppProvider = ({ children }: any) => {
         setSha(res.sha)
         setDirty(false)
         storage.setLastSynced(new Date().toISOString())
-        setDataLoaded(true)
+        toast('Fetched latest from GitHub', 'success')
       }
-    }catch(err:any){
-      console.error(err)
-      throw err
-    }finally{ setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
-  async function fetchRemote(force = false){
+  async function fetchRemote(force = false) {
     if (!token) return
+    if (dirty && !force) return { conflict: true }
     setLoading(true)
-    try{
-      const res: any = await fetchTasksFromGit(token)
-      if (res.notFound){
-        // create empty
-        const seed = EMPTY_SCHEMA()
+    try {
+      const res = await fetchTasksFromGit(token)
+      if ('notFound' in res && res.notFound) {
+        const seed = emptySchema()
         const created = await createEmptyFile(token, seed)
         storage.saveLocalData(seed)
         storage.setSha(created.content.sha)
@@ -117,93 +164,68 @@ export const AppProvider = ({ children }: any) => {
         setSha(created.content.sha)
         setDirty(false)
         storage.setLastSynced(new Date().toISOString())
-        setDataLoaded(true)
-        return
+        toast('Created remote tasks.json', 'success')
+        return { ok: true }
       }
-      if (dirty && !force){
-        // leave decision to caller
-        setLoading(false)
-        return { conflict: true }
+      if ('data' in res) {
+        storage.saveLocalData(res.data)
+        storage.setSha(res.sha)
+        setData(res.data)
+        setSha(res.sha)
+        setDirty(false)
+        storage.setLastSynced(new Date().toISOString())
+        toast('Fetched latest from GitHub', 'success')
+        return { ok: true }
       }
-      storage.saveLocalData(res.data)
-      storage.setSha(res.sha)
-      setData(res.data)
-      setSha(res.sha)
-      setDirty(false)
-      storage.setLastSynced(new Date().toISOString())
-      setDataLoaded(true)
-      return { ok: true }
-    }catch(err:any){
-      console.error(err)
+    } catch (err: any) {
+      toast(err.message || 'Fetch failed', 'error')
       throw err
-    }finally{ setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
-  async function pushLocal(){
+  async function pushLocal() {
     if (!token || !data) throw new Error('missing')
     setLoading(true)
-    try{
+    try {
       const res = await pushTasksToGit(token, data, sha || undefined)
-      // res.content.sha
       storage.setSha(res.content.sha)
       setSha(res.content.sha)
       setDirty(false)
       storage.setLastSynced(new Date().toISOString())
+      toast('Synced to GitHub', 'success')
       return { ok: true }
-    }catch(err:any){
-      if (err.message === 'sha_mismatch') return { sha_mismatch: true }
-      console.error(err)
+    } catch (err: any) {
+      if (err.message === 'sha_mismatch') {
+        toast('Remote changed — Fetch first', 'error')
+        return { sha_mismatch: true }
+      }
+      toast(err.message || 'Sync failed', 'error')
       throw err
-    }finally{ setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
-  function logout(){
+  function logout() {
     storage.clearToken()
     setToken(null)
   }
 
-  function updateData(next: DevLogData){
-    storage.saveLocalData(next)
-    setData(next)
-    setDirty(true)
-  }
-
-  // helper: start/stop timer on a task
-  function startTimer(taskId: string, estimateMinutes?: number){
-    if (!data) return
-    const now = new Date().toISOString()
-    const next = { ...data, tasks: data.tasks.map(t => t.id === taskId ? { ...t, timerStartedAt: now, timerEstimateMinutes: estimateMinutes ?? t.timerEstimateMinutes, updatedAt: now } : { ...t, timerStartedAt: null }) }
-    updateData(next)
-  }
-
-  function stopTimer(taskId: string, stopAndComplete = false){
-    if (!data) return
-    const now = new Date().toISOString()
-    const next = { ...data, tasks: data.tasks.map(t => {
-      if (t.id !== taskId) return t
-      if (!t.timerStartedAt) return t
-      const elapsedMs = Date.now() - new Date(t.timerStartedAt).getTime()
-      const elapsedHours = Math.round((elapsedMs / (1000*60*60)) * 100) / 100
-      const actual = (t.actualHours || 0) + elapsedHours
-      return { ...t, timerStartedAt: null, actualHours: actual, updatedAt: now, status: stopAndComplete ? 'completed' : t.status, completedAt: stopAndComplete ? now : t.completedAt }
-    }) }
-    updateData(next)
-  }
-
-  // Task operations
-  function addTask(partial: Partial<Task> & { title: string }){
+  function addTask(partial: Partial<Task> & { title: string }) {
     if (!data) return
     const now = new Date().toISOString()
     const task: Task = {
-      id: `task_${Date.now()}`,
+      id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       title: partial.title,
       description: partial.description || '',
-      boardId: partial.boardId ?? null,
+      boardId: partial.boardId ?? data.boards[0]?.id ?? null,
       tagIds: partial.tagIds ?? [],
       status: partial.status ?? 'pending',
       priority: partial.priority ?? 'medium',
-      type: partial.type ?? 'other',
-      workDate: partial.workDate ?? null,
+      type: partial.type ?? 'feature',
+      workDate: partial.workDate ?? now.slice(0, 10),
       estimatedHours: partial.estimatedHours ?? null,
       actualHours: partial.actualHours ?? null,
       gitCommit: partial.gitCommit ?? '',
@@ -216,92 +238,188 @@ export const AppProvider = ({ children }: any) => {
       completedAt: null,
       createdAt: now,
       updatedAt: now,
-      deletedAt: null
+      deletedAt: null,
     }
-    const next = { ...data, tasks: [task, ...data.tasks] }
-    updateData(next)
+    updateData({ ...data, tasks: [task, ...data.tasks] })
+    toast('Task added', 'success')
     return task
   }
 
-  function editTask(id: string, changes: Partial<Task>){
+  function editTask(id: string, changes: Partial<Task>) {
     if (!data) return
     const now = new Date().toISOString()
-    const next = { ...data, tasks: data.tasks.map(t => t.id === id ? { ...t, ...changes, updatedAt: now } : t) }
-    updateData(next)
+    updateData({
+      ...data,
+      tasks: data.tasks.map((t) => (t.id === id ? { ...t, ...changes, updatedAt: now } : t)),
+    })
   }
 
-  function softDeleteTask(id: string){
+  function softDeleteTask(id: string) {
     if (!data) return
     const now = new Date().toISOString()
-    const next = { ...data, tasks: data.tasks.map(t => t.id === id ? { ...t, deletedAt: now, updatedAt: now } : t) }
-    updateData(next)
+    updateData({
+      ...data,
+      tasks: data.tasks.map((t) => (t.id === id ? { ...t, deletedAt: now, timerStartedAt: null, updatedAt: now } : t)),
+    })
+    toast('Task deleted', 'info')
   }
 
-  function completeTask(id: string, commit?: string, actualHours?: number){
+  function completeTask(id: string, opts?: { commit?: string; notes?: string; actualHours?: number }) {
     if (!data) return
     const now = new Date().toISOString()
-    const next = { ...data, tasks: data.tasks.map(t => t.id === id ? { ...t, status: 'completed', gitCommit: commit ?? t.gitCommit, actualHours: actualHours ?? t.actualHours, completedAt: now, updatedAt: now } : t) }
-    updateData(next)
+    updateData({
+      ...data,
+      tasks: data.tasks.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              status: 'completed',
+              gitCommit: opts?.commit ?? t.gitCommit,
+              remarks: opts?.notes !== undefined ? opts.notes : t.remarks,
+              actualHours: opts?.actualHours ?? t.actualHours,
+              completedAt: now,
+              timerStartedAt: null,
+              updatedAt: now,
+            }
+          : t
+      ),
+    })
+    toast('Task completed', 'success')
   }
 
-  // Boards & Tags CRUD
-  function addBoard(partial: Partial<Board> & { name: string }){
+  function toggleFavorite(id: string) {
     if (!data) return
-    const id = `board_${Date.now()}`
-    const board: Board = { id, name: partial.name, color: partial.color ?? '#0f766e', position: data.boards.length }
-    const next = { ...data, boards: [...data.boards, board] }
-    updateData(next)
+    const t = data.tasks.find((x) => x.id === id)
+    if (!t) return
+    editTask(id, { isFavorite: !t.isFavorite })
+  }
+
+  function togglePin(id: string) {
+    if (!data) return
+    const t = data.tasks.find((x) => x.id === id)
+    if (!t) return
+    editTask(id, { isPinned: !t.isPinned })
+  }
+
+  function startTimer(taskId: string, estimateMinutes?: number) {
+    if (!data) return
+    const now = new Date().toISOString()
+    updateData({
+      ...data,
+      tasks: data.tasks.map((t) =>
+        t.id === taskId
+          ? { ...t, timerStartedAt: now, timerEstimateMinutes: estimateMinutes ?? t.timerEstimateMinutes ?? 30, updatedAt: now }
+          : { ...t, timerStartedAt: null }
+      ),
+    })
+  }
+
+  function stopTimer(taskId: string, stopAndComplete = false) {
+    if (!data) return
+    const now = new Date().toISOString()
+    updateData({
+      ...data,
+      tasks: data.tasks.map((t) => {
+        if (t.id !== taskId || !t.timerStartedAt) return t
+        const elapsedHours = Math.round(((Date.now() - new Date(t.timerStartedAt).getTime()) / 3600000) * 100) / 100
+        return {
+          ...t,
+          timerStartedAt: null,
+          actualHours: (t.actualHours || 0) + elapsedHours,
+          updatedAt: now,
+          status: stopAndComplete ? 'completed' : t.status,
+          completedAt: stopAndComplete ? now : t.completedAt,
+        }
+      }),
+    })
+  }
+
+  function addBoard(partial: Partial<Board> & { name: string }) {
+    if (!data) return
+    const board: Board = {
+      id: `board_${Date.now()}`,
+      name: partial.name,
+      color: partial.color ?? '#6366f1',
+      position: data.boards.length,
+    }
+    updateData({ ...data, boards: [...data.boards, board] })
     return board
   }
 
-  function editBoard(id: string, changes: Partial<Board>){
+  function editBoard(id: string, changes: Partial<Board>) {
     if (!data) return
-    const next = { ...data, boards: data.boards.map(b=> b.id===id ? { ...b, ...changes } : b) }
-    updateData(next)
+    updateData({ ...data, boards: data.boards.map((b) => (b.id === id ? { ...b, ...changes } : b)) })
   }
 
-  function deleteBoard(id: string){
+  function deleteBoard(id: string) {
     if (!data) return
-    const next = { ...data, boards: data.boards.filter(b=>b.id!==id), tasks: data.tasks.map(t=> t.boardId===id ? { ...t, boardId: null } : t) }
-    updateData(next)
+    updateData({
+      ...data,
+      boards: data.boards.filter((b) => b.id !== id),
+      tasks: data.tasks.map((t) => (t.boardId === id ? { ...t, boardId: null } : t)),
+    })
   }
 
-  function addTag(partial: Partial<Tag> & { name: string }){
+  function addTag(partial: Partial<Tag> & { name: string }) {
     if (!data) return
-    const id = `tag_${Date.now()}`
-    const tag: Tag = { id, name: partial.name, color: partial.color ?? '#64748b' }
-    const next = { ...data, tags: [...data.tags, tag] }
-    updateData(next)
+    const tag: Tag = { id: `tag_${Date.now()}`, name: partial.name, color: partial.color ?? '#64748b' }
+    updateData({ ...data, tags: [...data.tags, tag] })
     return tag
   }
 
-  function editTag(id: string, changes: Partial<Tag>){
+  function editTag(id: string, changes: Partial<Tag>) {
     if (!data) return
-    const next = { ...data, tags: data.tags.map(t=> t.id===id ? { ...t, ...changes } : t) }
-    updateData(next)
+    updateData({ ...data, tags: data.tags.map((t) => (t.id === id ? { ...t, ...changes } : t)) })
   }
 
-  function deleteTag(id: string){
+  function deleteTag(id: string) {
     if (!data) return
-    const next = { ...data, tags: data.tags.filter(t=>t.id!==id), tasks: data.tasks.map(tsk=> ({ ...tsk, tagIds: tsk.tagIds.filter(x=>x!==id) })) }
-    updateData(next)
+    updateData({
+      ...data,
+      tags: data.tags.filter((t) => t.id !== id),
+      tasks: data.tasks.map((tsk) => ({ ...tsk, tagIds: tsk.tagIds.filter((x) => x !== id) })),
+    })
   }
 
-  return (
-    <ctx.Provider value={{
-      token, tokenExists: !!token, loginWithToken, logout,
-      data, updateData, fetchRemote, pushLocal,
-      dirty, setDirty, loading, dataLoaded,
-      startTimer, stopTimer, sha,
-      addTask, editTask, softDeleteTask, completeTask,
-      addBoard, editBoard, deleteBoard,
-      addTag, editTag, deleteTag
-    }}>
-      {children}
-    </ctx.Provider>
-  )
+  const pendingCount = useMemo(() => (data ? pendingTasks(data.tasks).length : 0), [data])
+  const completedCount = useMemo(() => (data ? completedTasks(data.tasks).length : 0), [data])
+
+  const value: AppCtx = {
+    token,
+    data,
+    dirty,
+    loading,
+    theme,
+    search,
+    setSearch,
+    setTheme,
+    loginWithToken,
+    logout,
+    fetchRemote,
+    pushLocal,
+    addTask,
+    editTask,
+    softDeleteTask,
+    completeTask,
+    toggleFavorite,
+    togglePin,
+    startTimer,
+    stopTimer,
+    addBoard,
+    editBoard,
+    deleteBoard,
+    addTag,
+    editTag,
+    deleteTag,
+    pendingCount,
+    completedCount,
+  }
+
+  return <ctx.Provider value={value}>{children}</ctx.Provider>
 }
 
-export function useApp(){
-  return useContext(ctx)
+export function useApp() {
+  const v = useContext(ctx)
+  if (!v) throw new Error('useApp outside provider')
+  return v
 }

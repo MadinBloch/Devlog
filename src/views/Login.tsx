@@ -1,35 +1,46 @@
 import React, { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import * as storage from '../storage/local'
+import { getRepoConfig } from '../api/github'
 
-export default function Login(){
-  const [tokenInput, setTokenInput] = useState(storage.getToken() || '')
-  const [loading, setLoading] = useState(false)
+export default function Login() {
+  const [tokenInput, setTokenInput] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const app = useApp()
+  const { loginWithToken, loading } = useApp()
+  const cfg = getRepoConfig()
 
-  async function doLogin(){
+  async function doLogin() {
     setError(null)
-    setLoading(true)
-    try{
-      await app.loginWithToken(tokenInput.trim())
-    }catch(err:any){
-      console.error(err)
+    try {
+      await loginWithToken(tokenInput.trim())
+    } catch {
       setError('Invalid token or no repo access')
-    }finally{ setLoading(false) }
+    }
   }
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <h2>DevLog — Login</h2>
-        <p className="small">Paste a GitHub Personal Access Token (fine-grained, contents read/write for your private repo).</p>
-        <div style={{marginTop:12}}>
-          <input className="token-input" value={tokenInput} onChange={e=>setTokenInput(e.target.value)} placeholder="ghp_... or fine-grained token" />
-          <button className="button" onClick={doLogin} disabled={loading} style={{marginLeft:8}}>Login</button>
-        </div>
-        {error && <div style={{color:'#ff7b7b',marginTop:8}}>{error}</div>}
-        <div style={{marginTop:12}} className="small">Token stored in sessionStorage only. This app writes to the repository path configured in env.</div>
+    <div className="login-page">
+      <div className="login-card">
+        <div className="eyebrow">DevLog</div>
+        <h1>Sign in with GitHub</h1>
+        <p>
+          Paste a fine-grained PAT with Contents read/write on{' '}
+          <strong>
+            {cfg.owner}/{cfg.repo}
+          </strong>{' '}
+          ({cfg.path}).
+        </p>
+        <input
+          type="password"
+          value={tokenInput}
+          onChange={(e) => setTokenInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && doLogin()}
+          placeholder="github_pat_… or ghp_…"
+        />
+        <button type="button" className="primary-btn" onClick={doLogin} disabled={loading || !tokenInput.trim()}>
+          {loading ? 'Connecting…' : 'Login'}
+        </button>
+        {error && <p className="error" style={{ marginTop: 10 }}>{error}</p>}
+        <p style={{ marginTop: 14, fontSize: 11 }}>Token stays in sessionStorage only. Edits sync when you press Sync.</p>
       </div>
     </div>
   )

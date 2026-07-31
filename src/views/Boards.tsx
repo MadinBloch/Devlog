@@ -1,44 +1,66 @@
 import React, { useState } from 'react'
 import { useApp } from '../context/AppContext'
 
-export default function Boards(){
+export default function Boards() {
   const { data, addBoard, editBoard, deleteBoard } = useApp()
   const [name, setName] = useState('')
-  const [color, setColor] = useState('#0f766e')
+  const [color, setColor] = useState('#6366f1')
 
-  function create(){
-    if (!name.trim()) return alert('Name required')
-    addBoard({ name, color })
+  function create() {
+    if (!name.trim()) return
+    addBoard({ name: name.trim(), color })
     setName('')
   }
 
   return (
-    <div>
-      <h1>Boards</h1>
-      <p className="small">Manage boards used to group tasks.</p>
-      <div style={{marginTop:12,display:'flex',gap:8}}>
-        <input placeholder="Board name" value={name} onChange={e=>setName(e.target.value)} />
-        <input type="color" value={color} onChange={e=>setColor(e.target.value)} style={{width:48,height:34}} />
-        <button className="button" onClick={create}>Create</button>
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">Organize</div>
+          <h1>Boards</h1>
+          <p>Group tasks by board.</p>
+        </div>
       </div>
-
-      <div style={{marginTop:12}}>
-        {data?.boards.map(b=> (
-          <div key={b.id} style={{padding:8,background:'rgba(255,255,255,0.02)',borderRadius:8,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div>
-              <div style={{fontWeight:700}}>{b.name}</div>
-              <div className="small">{b.color}</div>
+      <div className="settings-block">
+        <div className="settings-row">
+          <input placeholder="Board name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} style={{ width: 48, height: 36 }} />
+          <button type="button" className="primary-btn" onClick={create}>
+            Create
+          </button>
+        </div>
+      </div>
+      <div className="pending-grid">
+        {data?.boards.map((b) => (
+          <div key={b.id} className="card">
+            <div className="card-title">
+              <h2>
+                <span className="board-dot" style={{ background: b.color, width: 10, height: 10 }} /> {b.name}
+              </h2>
             </div>
-            <div>
-              <button className="button" onClick={()=>{
-                const newName = prompt('Name', b.name)
-                if (newName) editBoard(b.id, { name: newName })
-              }}>Edit</button>
-              <button className="button" onClick={()=>{ if (confirm('Delete board? Tasks will be unassigned.')) deleteBoard(b.id) }} style={{marginLeft:8}}>Delete</button>
+            <p className="mono">{b.color}</p>
+            <div className="heading-actions" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="soft-btn"
+                onClick={() => {
+                  const n = prompt('Name', b.name)
+                  if (n) editBoard(b.id, { name: n })
+                }}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className="soft-btn"
+                onClick={() => confirm('Delete board? Tasks will be unassigned.') && deleteBoard(b.id)}
+              >
+                Delete
+              </button>
             </div>
           </div>
         ))}
       </div>
-    </div>
+    </>
   )
 }

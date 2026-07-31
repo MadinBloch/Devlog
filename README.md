@@ -1,13 +1,19 @@
-# DevLog — Frontend-only Work-log
+# DevLog React — GitHub-backed Work OS
 
-Personal developer work-log (frontend-only). Stores a JSON file in a private GitHub repo under `data/tasks.json` and keeps edits locally until you `Sync`.
+Personal developer work-log (frontend-only). Matches the Laravel DevLog Work OS UI.
 
-## Quick start
+- **Source of truth:** private GitHub file `data/tasks.json`
+- **Working copy:** `localStorage` (edits are local until Sync)
+- **↓ Fetch** — GitHub → localStorage (`git pull` style)
+- **↑ Sync** — localStorage → GitHub (`git push` style)
+- Auto-fetch after login / page load
 
-1. Create a private GitHub repo (example `devlog-data`).
-2. Create an empty file at `data/tasks.json` (or allow the app to create one).
-3. Create a fine-grained PAT with repository contents read & write on that repo only.
-4. Set environment variables when running the app. For local testing, create a `.env` file in the project root with these values:
+## Setup
+
+1. Create a private GitHub repo (e.g. `devlog-data`).
+2. Allow the app to create `data/tasks.json`, or add an empty JSON file yourself.
+3. Create a fine-grained PAT with **Contents: Read and Write** on that repo only.
+4. Copy `.env.example` → `.env`:
 
 ```env
 VITE_GITHUB_OWNER=your-github-username
@@ -15,34 +21,32 @@ VITE_GITHUB_REPO=your-private-repo-name
 VITE_GITHUB_FILE_PATH=data/tasks.json
 ```
 
-The repository includes `.env.example` and `.gitignore` so your local `.env` is not committed.
-
-Install and run:
-
 ```bash
 npm install
 npm run dev
 ```
 
-Open the app, paste your PAT on the login screen. Token is stored in `sessionStorage.devlog_token` only.
+Paste your PAT on the login screen. Token is stored in `sessionStorage` only.
 
-## How it works
+## Daily workflow
 
-- On login the app attempts to `GET` the configured file from GitHub. If missing, it will create a seeded JSON file.
-- Fetched content is saved to `localStorage.devlog_data` and the file SHA to `localStorage.devlog_sha`.
-- Edits only update `localStorage.devlog_data` and set `localStorage.devlog_dirty` = `true`.
-- Use `Sync` to push the current local JSON to GitHub (PUT to contents API). Use `Fetch` to pull remote into local (will warn and block if there are unsaved local changes).
+1. Open app → auto Fetch from GitHub  
+2. Add/edit/complete tasks (local only)  
+3. Click **↑ Sync** before you leave  
+4. On another PC: open app (or click **↓ Fetch**) → see the same data  
 
-## Security
+## Features
 
-- This app stores your PAT in `sessionStorage` for convenience — do not share it. For personal use only.
-- Do not commit tokens or credentials.
+- Dashboard, Today, Pending (filters), Completed, Reports, Boards, Search, Settings
+- Timer with estimate presets, live clock, progress, overtime
+- Complete modal (commit + notes)
+- Dark / light theme
+- Keyboard: `N` new task, `/` search, `Ctrl+S` sync, `Ctrl+Shift+F` fetch
 
 ## Deploy
 
-This is a static frontend app. Deploy to Vercel, Netlify or Cloudflare Pages. Provide the environment variables in the deployment settings.
+Static site — Vercel, Netlify, or Cloudflare Pages. Set the same `VITE_*` env vars in the host.
 
-## Schema
+## Security
 
-See `data/tasks.json` schema in the project README (and in `src/types.ts`).
-
+Personal use only. Never commit your PAT. Anyone with the token can write to your data repo.
