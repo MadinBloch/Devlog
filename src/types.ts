@@ -35,4 +35,6 @@ export interface DevLogData {
   boards: Board[]
   tags: Tag[]
   tasks: Task[]
+  importedFrom?: string
+  importedAt?: string
 }

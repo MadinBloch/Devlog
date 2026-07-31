@@ -29,6 +29,10 @@ export default function Login() {
           </strong>{' '}
           ({cfg.path}).
         </p>
+        <p style={{ fontSize: 12 }}>
+          First login can create <code>tasks.json</code> from your Laravel SQLite export (143 tasks).
+          Or import anytime from Settings → Sync to GitHub.
+        </p>
         <input
           type="password"
           value={tokenInput}

@@ -20,12 +20,13 @@ import useKeyboardShortcuts from './hooks/useKeyboardShortcuts'
 import { Task } from './types'
 
 export default function App() {
-  const { token } = useApp()
+  const { token, search } = useApp()
   const [view, setView] = useState('dashboard')
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
   const [completing, setCompleting] = useState<Task | null>(null)
   const [timerOpen, setTimerOpen] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
 
   function openNew() {
     setEditing(null)
@@ -43,18 +44,24 @@ export default function App() {
     return () => window.removeEventListener('devlog:new-task', handler)
   }, [])
 
+  useEffect(() => {
+    if (search.trim() && view !== 'search') setView('search')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
+
   useKeyboardShortcuts(openNew, () => setView('search'))
 
   if (!token) return <Login />
 
   return (
     <div className="workos">
-      <Sidebar view={view} setView={setView} />
+      <Sidebar view={view} setView={setView} open={navOpen} onClose={() => setNavOpen(false)} />
       <main className="main">
         <Header
           onNewTask={openNew}
           onOpenTimer={() => setTimerOpen(true)}
           onOpenSearch={() => setView('search')}
+          onToggleNav={() => setNavOpen((v) => !v)}
         />
         <TimerBar />
         {view === 'dashboard' && (

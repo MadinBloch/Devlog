@@ -4,6 +4,7 @@ import * as storage from '../storage/local'
 import { fetchTasksFromGit, createEmptyFile, pushTasksToGit } from '../api/github'
 import { toast } from '../utils/toast'
 import { pendingTasks, completedTasks } from '../utils/helpers'
+import { getLaravelSeed } from '../data/seed'
 
 type AppCtx = {
   token: string | null
@@ -22,6 +23,7 @@ type AppCtx = {
   editTask: (id: string, changes: Partial<Task>) => void
   softDeleteTask: (id: string) => void
   completeTask: (id: string, opts?: { commit?: string; notes?: string; actualHours?: number }) => void
+  reopenTask: (id: string) => void
   toggleFavorite: (id: string) => void
   togglePin: (id: string) => void
   startTimer: (taskId: string, estimateMinutes?: number) => void
@@ -32,6 +34,7 @@ type AppCtx = {
   addTag: (partial: Partial<Tag> & { name: string }) => Tag | undefined
   editTag: (id: string, changes: Partial<Tag>) => void
   deleteTag: (id: string) => void
+  importLaravelData: () => void
   pendingCount: number
   completedCount: number
 }
@@ -39,46 +42,7 @@ type AppCtx = {
 const ctx = createContext<AppCtx | null>(null)
 
 function emptySchema(): DevLogData {
-  const now = new Date().toISOString()
-  return {
-    version: 1,
-    updatedAt: now,
-    boards: [
-      { id: 'board_work', name: 'Work', color: '#6366f1', position: 0 },
-      { id: 'board_personal', name: 'Personal', color: '#0ea5a4', position: 1 },
-    ],
-    tags: [
-      { id: 'tag_bug', name: 'bug', color: '#dc2626' },
-      { id: 'tag_feature', name: 'feature', color: '#6366f1' },
-      { id: 'tag_urgent', name: 'urgent', color: '#f59e0b' },
-    ],
-    tasks: [
-      {
-        id: `task_${Date.now()}`,
-        title: 'Welcome to DevLog',
-        description: 'Edit or delete this seeded task. Use Sync to push to GitHub.',
-        boardId: 'board_work',
-        tagIds: ['tag_feature'],
-        status: 'pending',
-        priority: 'medium',
-        type: 'feature',
-        workDate: now.slice(0, 10),
-        estimatedHours: 1,
-        actualHours: null,
-        gitCommit: '',
-        branch: '',
-        remarks: '',
-        isFavorite: true,
-        isPinned: true,
-        timerStartedAt: null,
-        timerEstimateMinutes: 30,
-        completedAt: null,
-        createdAt: now,
-        updatedAt: now,
-        deletedAt: null,
-      },
-    ],
-  }
+  return getLaravelSeed()
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -132,7 +96,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setSha(created.content.sha)
         setDirty(false)
         storage.setLastSynced(new Date().toISOString())
-        toast('Created tasks.json and logged in', 'success')
+        toast(`Created tasks.json with Laravel export (${seed.tasks.length} tasks)`, 'success')
       } else if ('data' in res) {
         storage.setToken(t)
         setToken(t)
@@ -164,7 +128,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setSha(created.content.sha)
         setDirty(false)
         storage.setLastSynced(new Date().toISOString())
-        toast('Created remote tasks.json', 'success')
+        toast(`Created remote with Laravel export (${seed.tasks.length} tasks)`, 'success')
         return { ok: true }
       }
       if ('data' in res) {
@@ -287,6 +251,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toast('Task completed', 'success')
   }
 
+  function reopenTask(id: string) {
+    if (!data) return
+    const now = new Date().toISOString()
+    updateData({
+      ...data,
+      tasks: data.tasks.map((t) =>
+        t.id === id
+          ? { ...t, status: 'pending', completedAt: null, updatedAt: now }
+          : t
+      ),
+    })
+    toast('Task reopened', 'success')
+  }
+
+  function importLaravelData() {
+    const seed = getLaravelSeed()
+    updateData(seed)
+    toast(`Imported ${seed.tasks.length} tasks from Laravel SQLite`, 'success')
+  }
+
   function toggleFavorite(id: string) {
     if (!data) return
     const t = data.tasks.find((x) => x.id === id)
@@ -401,6 +385,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     editTask,
     softDeleteTask,
     completeTask,
+    reopenTask,
     toggleFavorite,
     togglePin,
     startTimer,
@@ -411,6 +396,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addTag,
     editTag,
     deleteTag,
+    importLaravelData,
     pendingCount,
     completedCount,
   }

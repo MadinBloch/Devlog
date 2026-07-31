@@ -6,10 +6,12 @@ export default function Header({
   onNewTask,
   onOpenTimer,
   onOpenSearch,
+  onToggleNav,
 }: {
   onNewTask: () => void
   onOpenTimer: () => void
   onOpenSearch?: () => void
+  onToggleNav?: () => void
 }) {
   const { fetchRemote, pushLocal, dirty, loading, search, setSearch, logout } = useApp()
 
@@ -32,11 +34,15 @@ export default function Header({
   }
 
   const last = storage.getLastSynced()
-  const lastLabel = last ? new Date(last).toLocaleString() : 'never'
+  const lastLabel = last
+    ? new Date(last).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'never'
 
   return (
     <header>
-      <div className="mobile-brand">D</div>
+      <button type="button" className="mobile-brand" onClick={onToggleNav} title="Menu">
+        D
+      </button>
       <label className="global-search">
         <span>⌕</span>
         <input
@@ -50,13 +56,20 @@ export default function Header({
       </label>
       {loading && <span className="loading-dot" />}
       <div className="header-sync">
-        <span className={`sync-badge ${dirty ? 'dirty' : ''}`}>
-          {dirty ? '● Unsaved' : '✓ Synced'} · {lastLabel}
+        <span className={`sync-badge ${dirty ? 'dirty' : ''}`} title={last ? new Date(last).toLocaleString() : ''}>
+          {dirty ? '● Unsaved' : '✓ Synced'}
+          <span className="sync-time">{lastLabel}</span>
         </span>
-        <button type="button" className="soft-btn" onClick={handleFetch} disabled={loading}>
+        <button type="button" className="soft-btn" onClick={handleFetch} disabled={loading} title="Pull from GitHub">
           ↓ Fetch
         </button>
-        <button type="button" className="soft-btn" onClick={handlePush} disabled={loading}>
+        <button
+          type="button"
+          className={`soft-btn ${dirty ? 'sync-hot' : ''}`}
+          onClick={handlePush}
+          disabled={loading}
+          title="Push to GitHub"
+        >
           ↑ Sync
         </button>
         <button type="button" className="soft-btn header-timer-btn" onClick={onOpenTimer}>
@@ -65,7 +78,7 @@ export default function Header({
         <button type="button" className="new-btn" onClick={onNewTask}>
           + New task
         </button>
-        <button type="button" className="soft-btn" onClick={() => confirm('Logout?') && logout()}>
+        <button type="button" className="soft-btn logout-btn" onClick={() => confirm('Logout?') && logout()}>
           Logout
         </button>
       </div>

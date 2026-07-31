@@ -28,7 +28,20 @@ npm run dev
 
 Paste your PAT on the login screen. Token is stored in `sessionStorage` only.
 
-## Daily workflow
+## Import Laravel SQLite data
+
+From the project root:
+
+```bash
+php export-to-devlog-react.php
+```
+
+This writes `DevlogReact/data/tasks.json` (and copies into the app seed).
+
+In the app: **Settings → Import Laravel data → ↑ Sync** to push to GitHub.
+
+On first login, if the GitHub file does not exist, the app creates it from this Laravel export automatically.
+
 
 1. Open app → auto Fetch from GitHub  
 2. Add/edit/complete tasks (local only)  

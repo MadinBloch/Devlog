@@ -28,11 +28,22 @@ export function activeTasks(tasks: Task[]) {
 }
 
 export function pendingTasks(tasks: Task[]) {
-  return activeTasks(tasks).filter((t) => t.status === 'pending')
+  return activeTasks(tasks)
+    .filter((t) => t.status === 'pending')
+    .sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
+      if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
+      const order = { critical: 0, high: 1, medium: 2, low: 3 }
+      const pd = (order[a.priority] ?? 9) - (order[b.priority] ?? 9)
+      if (pd !== 0) return pd
+      return (b.updatedAt || '').localeCompare(a.updatedAt || '')
+    })
 }
 
 export function completedTasks(tasks: Task[]) {
-  return activeTasks(tasks).filter((t) => t.status === 'completed')
+  return activeTasks(tasks)
+    .filter((t) => t.status === 'completed')
+    .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''))
 }
 
 export function pad(n: number) {
