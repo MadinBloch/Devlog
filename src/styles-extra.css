@@ -44,6 +44,68 @@
 .theme-dark .highlight-block{background:linear-gradient(135deg,#1d2948,#1e293b);border-color:#3c4c80}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--muted)}
 .queue-main{cursor:default}
+
+/* Modal: scroll body, sticky Save — no zoom needed */
+.modal-backdrop{align-items:center;overflow:auto;padding:16px}
+.task-modal.modal-shell{
+  display:flex;
+  flex-direction:column;
+  width:min(560px,100%);
+  max-height:min(88vh,720px);
+  padding:0;
+  overflow:hidden;
+}
+.modal-shell-head{padding:18px 20px 10px;flex:none;margin-bottom:0}
+.modal-shell-body{padding:4px 20px 12px;overflow:auto;flex:1;min-height:0}
+.modal-shell-footer{flex:none;padding:12px 20px 16px;border-top:1px solid var(--line);background:var(--surface)}
+.sticky-actions{margin-top:0;align-items:center}
+.modal-hint{margin-right:auto;font-size:11px;color:var(--faint);font-weight:600}
+.task-form label{margin-top:10px}
+.task-form textarea{min-height:64px}
+.form-block{margin-top:12px}
+.optional{color:var(--faint);font-weight:500}
+.empty-state strong{display:block;margin-bottom:6px;color:var(--ink)}
+.empty-state p{margin:0;color:var(--muted);font-size:12px}
+.stat-click{cursor:pointer;transition:transform .12s ease,border-color .12s ease}
+.stat-click:hover{transform:translateY(-2px);border-color:#c7c9ff}
+
+/* Filters rearranged */
+.filter-card{margin:0 44px 18px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.filter-panel.filter-card{padding:14px 16px}
+.filter-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.filter-meta{display:flex;align-items:center;gap:10px}
+.range-pill{font-size:11px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:6px 10px}
+.filter-bar-compact{gap:12px}
+.filter-bar-compact label{position:relative;display:grid;gap:5px}
+.filter-search{flex:1;min-width:200px}
+.date-hint{font-size:9px;font-weight:600;color:var(--faint);text-transform:none;letter-spacing:0;margin-left:4px}
+.date-display{display:block;font-size:11px;font-style:normal;font-weight:700;color:var(--primary);margin-top:2px}
+.filter-chips.dense{gap:5px;margin-top:8px}
+.filter-chips.dense .chip-btn{padding:6px 9px;font-size:10px}
+
+/* Timer modal: one scroll only (task list) */
+.timer-modal.modal-shell{width:min(520px,100%);max-height:min(86vh,640px)}
+.timer-picker-fixed{margin-top:10px;display:flex;flex-direction:column;min-height:0}
+.timer-picker-fixed .timer-task-list{max-height:min(38vh,280px);overflow:auto}
+.timer-footer{display:grid;gap:10px}
+.timer-estimate-block.compact{margin:0}
+.inline-custom{display:flex!important;align-items:center;gap:8px;margin-top:8px!important;flex-direction:row!important}
+.inline-custom input{width:72px;padding:8px 10px}
+.small-unit{font-size:11px;color:var(--muted);font-weight:700}
+.timer-tip{margin:8px 0 0;font-size:11px;color:var(--faint)}
+.modal-shell-body .modal-actions{display:none} /* actions live in footer */
+
+/* Reports */
+.break-title{font-size:12px;margin:14px 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.break-row{margin-bottom:10px}
+.break-label{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:4px}
+.break-label span{color:var(--muted);font-size:11px}
+.break-bar{height:7px;border-radius:999px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+.break-bar i{display:block;height:100%;background:linear-gradient(90deg,#7477ff,#5b4ce8);border-radius:inherit}
+.report-date{color:var(--faint);font-size:10px}
+.hint-line{margin-top:10px!important}
+.report-tools.filter-card{display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+
 @media(max-width:680px){
   .sidebar{display:none;position:fixed;z-index:40}
   .sidebar.is-open{display:flex}
@@ -51,6 +113,9 @@
   .mobile-brand{display:grid!important;place-items:center;border:0;cursor:pointer}
   .logout-btn{display:none}
   .sync-time{display:none}
-  .settings-block{margin-left:17px;margin-right:17px}
+  .settings-block,.filter-card{margin-left:17px;margin-right:17px}
   .row-actions .action-btn{padding:6px 8px}
+  .task-modal.modal-shell{max-height:92vh;width:100%}
+  .modal-hint{display:none}
+  .filter-top{flex-direction:column;align-items:stretch}
 }

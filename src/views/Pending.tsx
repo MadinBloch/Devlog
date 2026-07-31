@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { Task, Priority, TaskType } from '../types'
 import TaskRow from '../components/TaskRow'
-import { pendingTasks, TYPE_LABELS, PRIORITY_LABELS } from '../utils/helpers'
+import TaskFilters from '../components/TaskFilters'
+import { pendingTasks, TYPE_LABELS, downloadText, formatDisplayDate } from '../utils/helpers'
 
 export default function Pending({
   onEdit,
@@ -17,33 +18,51 @@ export default function Pending({
   const [priorities, setPriorities] = useState<Priority[]>([])
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  const [query, setQuery] = useState('')
 
   const list = useMemo(() => {
     if (!data) return []
+    const q = query.trim().toLowerCase()
     return pendingTasks(data.tasks).filter((t) => {
       if (board !== 'all' && t.boardId !== board) return false
       if (types.length && !types.includes(t.type)) return false
       if (priorities.length && !priorities.includes(t.priority)) return false
       if (from && (t.workDate || '') < from) return false
       if (to && (t.workDate || '') > to) return false
+      if (q) {
+        const hay = [t.title, t.description, t.remarks, t.gitCommit, t.branch].join(' ').toLowerCase()
+        if (!hay.includes(q)) return false
+      }
       return true
     })
-  }, [data, board, types, priorities, from, to])
-
-  function toggleType(t: TaskType) {
-    setTypes((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]))
-  }
-  function togglePri(p: Priority) {
-    setPriorities((list) => (list.includes(p) ? list.filter((x) => x !== p) : [...list, p]))
-  }
+  }, [data, board, types, priorities, from, to, query])
 
   function exportTxt() {
-    const lines = list.map((t) => `- [${t.priority}] ${t.title}${t.workDate ? ` (${t.workDate})` : ''}`)
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = 'pending_tasks.txt'
-    a.click()
+    const lines = [
+      `Pending Tasks — ${formatDisplayDate(new Date().toISOString())}`,
+      '='.repeat(56),
+      '',
+      ...(from || to ? [`Date filter: ${formatDisplayDate(from) || '...'} to ${formatDisplayDate(to) || '...'}`, ''] : []),
+    ]
+    const grouped = new Map<string, Task[]>()
+    for (const t of list) {
+      const key = t.boardId || 'none'
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key)!.push(t)
+    }
+    if (!list.length) lines.push('No pending tasks for the selected filters.')
+    for (const [boardId, tasks] of grouped) {
+      const name = data?.boards.find((b) => b.id === boardId)?.name || 'Unassigned'
+      lines.push(name, '-'.repeat(32))
+      for (const t of tasks) {
+        lines.push(`-- ${t.title}`)
+        lines.push(
+          `   ${TYPE_LABELS[t.type] || t.type} · ${t.priority} · ${formatDisplayDate(t.workDate) || 'no date'}`
+        )
+      }
+      lines.push('')
+    }
+    downloadText(lines.join('\n'), `pending-tasks-${new Date().toISOString().slice(0, 10)}.txt`)
   }
 
   const grouped = useMemo(() => {
@@ -66,67 +85,44 @@ export default function Pending({
         </div>
         <div className="heading-actions">
           <button type="button" className="soft-btn" onClick={exportTxt}>
-            Export
+            Export text
           </button>
         </div>
       </div>
 
-      <div className="filter-panel">
-        <div className="filter-bar">
-          <label>
-            Board
-            <select value={board} onChange={(e) => setBoard(e.target.value)}>
-              <option value="all">All</option>
-              {data?.boards.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            From
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label>
-            To
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </label>
-          <button
-            type="button"
-            className="chip-btn ghost"
-            onClick={() => {
-              setBoard('all')
-              setTypes([])
-              setPriorities([])
-              setFrom('')
-              setTo('')
-            }}
-          >
-            Clear
-          </button>
-          <span className="filter-count">{list.length} tasks</span>
-        </div>
-        <div className="filter-chips">
-          <span className="chip-label">Type</span>
-          {(Object.keys(TYPE_LABELS) as TaskType[]).map((t) => (
-            <button key={t} type="button" className={`chip-btn ${types.includes(t) ? 'active' : ''}`} onClick={() => toggleType(t)}>
-              {TYPE_LABELS[t]}
-            </button>
-          ))}
-        </div>
-        <div className="filter-chips">
-          <span className="chip-label">Priority</span>
-          {(Object.keys(PRIORITY_LABELS) as Priority[]).map((p) => (
-            <button key={p} type="button" className={`chip-btn ${priorities.includes(p) ? 'active' : ''}`} onClick={() => togglePri(p)}>
-              {PRIORITY_LABELS[p]}
-            </button>
-          ))}
-        </div>
-      </div>
+      <TaskFilters
+        from={from}
+        to={to}
+        setFrom={setFrom}
+        setTo={setTo}
+        board={board}
+        setBoard={setBoard}
+        boards={data?.boards}
+        types={types}
+        setTypes={setTypes}
+        priorities={priorities}
+        setPriorities={setPriorities}
+        query={query}
+        setQuery={setQuery}
+        count={list.length}
+        onClear={() => {
+          setBoard('all')
+          setTypes([])
+          setPriorities([])
+          setFrom('')
+          setTo('')
+          setQuery('')
+        }}
+        dateLabel="Work date"
+      />
 
       <div className="queue-list">
-        {list.length === 0 && <div className="empty-state empty">No pending tasks match filters.</div>}
+        {list.length === 0 && (
+          <div className="empty-state empty">
+            <strong>No pending tasks match this filter.</strong>
+            <p>Try another date range or type filter, or clear filters to see everything.</p>
+          </div>
+        )}
         {[...grouped.entries()].map(([boardId, tasks]) => {
           const boardObj = data?.boards.find((b) => b.id === boardId)
           return (
@@ -134,7 +130,7 @@ export default function Pending({
               <div className="queue-board-head">
                 <h2>
                   <span className="board-dot" style={{ background: boardObj?.color || '#94a3b8' }} />
-                  {boardObj?.name || 'No board'}
+                  {boardObj?.name || 'Unassigned'}
                 </h2>
                 <span className="queue-count">{tasks.length}</span>
               </div>

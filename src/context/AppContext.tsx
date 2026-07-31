@@ -22,8 +22,9 @@ type AppCtx = {
   addTask: (partial: Partial<Task> & { title: string }) => Task | undefined
   editTask: (id: string, changes: Partial<Task>) => void
   softDeleteTask: (id: string) => void
-  completeTask: (id: string, opts?: { commit?: string; notes?: string; actualHours?: number }) => void
+  completeTask: (id: string, opts?: { commit?: string; notes?: string; actualHours?: number; completedAt?: string }) => void
   reopenTask: (id: string) => void
+  duplicateTask: (id: string) => void
   toggleFavorite: (id: string) => void
   togglePin: (id: string) => void
   startTimer: (taskId: string, estimateMinutes?: number) => void
@@ -199,7 +200,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isPinned: partial.isPinned ?? false,
       timerStartedAt: null,
       timerEstimateMinutes: partial.timerEstimateMinutes ?? null,
-      completedAt: null,
+      completedAt: (partial.status ?? 'pending') === 'completed' ? (partial.completedAt ?? now) : null,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
@@ -228,9 +229,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toast('Task deleted', 'info')
   }
 
-  function completeTask(id: string, opts?: { commit?: string; notes?: string; actualHours?: number }) {
+  function completeTask(id: string, opts?: { commit?: string; notes?: string; actualHours?: number; completedAt?: string }) {
     if (!data) return
-    const now = new Date().toISOString()
+    const now = opts?.completedAt || new Date().toISOString()
     updateData({
       ...data,
       tasks: data.tasks.map((t) =>
@@ -243,7 +244,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               actualHours: opts?.actualHours ?? t.actualHours,
               completedAt: now,
               timerStartedAt: null,
-              updatedAt: now,
+              updatedAt: new Date().toISOString(),
             }
           : t
       ),
@@ -263,6 +264,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ),
     })
     toast('Task reopened', 'success')
+  }
+
+  function duplicateTask(id: string) {
+    if (!data) return
+    const src = data.tasks.find((t) => t.id === id)
+    if (!src) return
+    const now = new Date().toISOString()
+    const copy: Task = {
+      ...src,
+      id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      title: `${src.title} (copy)`,
+      status: 'pending',
+      completedAt: null,
+      timerStartedAt: null,
+      actualHours: null,
+      gitCommit: '',
+      isFavorite: false,
+      isPinned: false,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+      workDate: now.slice(0, 10),
+    }
+    updateData({ ...data, tasks: [copy, ...data.tasks] })
+    toast('Task duplicated', 'success')
   }
 
   function importLaravelData() {
@@ -386,6 +412,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     softDeleteTask,
     completeTask,
     reopenTask,
+    duplicateTask,
     toggleFavorite,
     togglePin,
     startTimer,

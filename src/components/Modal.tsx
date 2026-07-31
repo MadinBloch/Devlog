@@ -6,21 +6,23 @@ export default function Modal({
   subtitle,
   onClose,
   wide,
+  footer,
 }: {
   children: React.ReactNode
   title?: string
   subtitle?: string
   onClose?: () => void
   wide?: boolean
+  footer?: React.ReactNode
 }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className={`task-modal ${wide ? 'timer-modal' : ''}`}
+        className={`task-modal modal-shell ${wide ? 'timer-modal' : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || onClose) && (
-          <div className="modal-title">
+          <div className="modal-title modal-shell-head">
             <div>
               {title && <h2>{title}</h2>}
               {subtitle && <p>{subtitle}</p>}
@@ -32,7 +34,8 @@ export default function Modal({
             )}
           </div>
         )}
-        {children}
+        <div className="modal-shell-body">{children}</div>
+        {footer && <div className="modal-shell-footer">{footer}</div>}
       </div>
     </div>
   )

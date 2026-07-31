@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { Task } from '../types'
 import TaskRow from '../components/TaskRow'
-import { pendingTasks, completedTasks, todayISO, boardColor, boardName } from '../utils/helpers'
+import { pendingTasks, completedTasks, todayISO, boardColor, boardName, formatDisplayDate } from '../utils/helpers'
 
 export default function Dashboard({
   onEdit,
@@ -61,22 +61,22 @@ export default function Dashboard({
       </div>
 
       <div className="stats">
-        <article>
+        <article className="stat-click" onClick={() => setView('pending')} role="button" tabIndex={0}>
           <small>PENDING</small>
           <strong>{pending.length}</strong>
           <p>Open tasks</p>
         </article>
-        <article>
+        <article className="stat-click" onClick={() => setView('completed')} role="button" tabIndex={0}>
           <small>DONE TODAY</small>
           <strong>{completedToday.length}</strong>
           <p>{hoursToday.toFixed(1)}h logged</p>
         </article>
-        <article>
+        <article className="stat-click" onClick={() => setView('boards')} role="button" tabIndex={0}>
           <small>BOARDS</small>
           <strong>{data.boards.length}</strong>
           <p>Active boards</p>
         </article>
-        <article>
+        <article className="stat-click" onClick={() => setView('completed')} role="button" tabIndex={0}>
           <small>COMPLETED</small>
           <strong>{completed.length}</strong>
           <p>All time</p>
@@ -127,13 +127,13 @@ export default function Dashboard({
           </div>
           {recent.length === 0 && <div className="empty">Nothing completed yet.</div>}
           {recent.map((t) => (
-            <div key={t.id} className="activity">
+            <div key={t.id} className="activity" style={{ cursor: 'pointer' }} onClick={() => onEdit(t)}>
               <div className="activity-icon">✓</div>
               <div>
                 <strong>{t.title}</strong>
                 <p>{t.actualHours != null ? `${t.actualHours}h` : '—'}{t.gitCommit ? ` · #${t.gitCommit}` : ''}</p>
               </div>
-              <time>{t.completedAt ? new Date(t.completedAt).toLocaleDateString() : ''}</time>
+              <time>{t.completedAt ? formatDisplayDate(t.completedAt) : ''}</time>
             </div>
           ))}
         </div>
