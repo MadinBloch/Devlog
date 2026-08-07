@@ -4,6 +4,7 @@ import App from './App'
 import { AppProvider } from './context/AppContext'
 import './styles.css'
 import './styles-extra.css'
+import './styles/shadcn.css'
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

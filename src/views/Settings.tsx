@@ -70,7 +70,8 @@ export default function Settings() {
           {cfg.owner}/{cfg.repo} · {cfg.path}
         </p>
         <p className="mono">
-          Local: {data?.tasks.filter((t) => !t.deletedAt).length ?? 0} tasks · Last synced:{' '}
+          Local: {data?.tasks.filter((t) => !t.deletedAt).length ?? 0} tasks ·{' '}
+          {data?.notes?.filter((n) => !n.deletedAt).length ?? 0} notes · Last synced:{' '}
           {storage.getLastSynced() || 'never'} {dirty ? '(unsaved)' : ''}
         </p>
         <div className="settings-row">

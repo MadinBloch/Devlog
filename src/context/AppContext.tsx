@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { DevLogData, Task, Board, Tag } from '../types'
+import { DevLogData, Task, Board, Tag, Note } from '../types'
 import * as storage from '../storage/local'
 import { fetchTasksFromGit, createEmptyFile, pushTasksToGit } from '../api/github'
 import { toast } from '../utils/toast'
 import { pendingTasks, completedTasks } from '../utils/helpers'
 import { getLaravelSeed } from '../data/seed'
+import { normalizeData } from '../utils/normalize'
 
 type AppCtx = {
   token: string | null
@@ -35,6 +36,10 @@ type AppCtx = {
   addTag: (partial: Partial<Tag> & { name: string }) => Tag | undefined
   editTag: (id: string, changes: Partial<Tag>) => void
   deleteTag: (id: string) => void
+  addNote: (partial?: Partial<Note> & { title?: string; body?: string }) => Note | undefined
+  editNote: (id: string, changes: Partial<Note>) => void
+  softDeleteNote: (id: string) => void
+  toggleNotePin: (id: string) => void
   importLaravelData: () => void
   pendingCount: number
   completedCount: number
@@ -76,7 +81,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   function updateData(next: DevLogData) {
-    const stamped = { ...next, updatedAt: new Date().toISOString() }
+    const stamped = normalizeData({ ...next, updatedAt: new Date().toISOString() })
     storage.saveLocalData(stamped)
     setData(stamped)
     setDirty(true)
@@ -391,6 +396,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })
   }
 
+  function addNote(partial?: Partial<Note> & { title?: string; body?: string }) {
+    if (!data) return
+    const now = new Date().toISOString()
+    const note: Note = {
+      id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      title: (partial?.title || '').trim(),
+      body: (partial?.body || '').trim(),
+      color: partial?.color || 'default',
+      isPinned: partial?.isPinned ?? false,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    }
+    updateData({ ...data, notes: [note, ...(data.notes || [])] })
+    toast('Note added', 'success')
+    return note
+  }
+
+  function editNote(id: string, changes: Partial<Note>) {
+    if (!data) return
+    const now = new Date().toISOString()
+    updateData({
+      ...data,
+      notes: (data.notes || []).map((n) => (n.id === id ? { ...n, ...changes, updatedAt: now } : n)),
+    })
+  }
+
+  function softDeleteNote(id: string) {
+    if (!data) return
+    const now = new Date().toISOString()
+    updateData({
+      ...data,
+      notes: (data.notes || []).map((n) => (n.id === id ? { ...n, deletedAt: now, updatedAt: now } : n)),
+    })
+    toast('Note deleted', 'info')
+  }
+
+  function toggleNotePin(id: string) {
+    if (!data) return
+    const n = (data.notes || []).find((x) => x.id === id)
+    if (!n) return
+    editNote(id, { isPinned: !n.isPinned })
+  }
+
   const pendingCount = useMemo(() => (data ? pendingTasks(data.tasks).length : 0), [data])
   const completedCount = useMemo(() => (data ? completedTasks(data.tasks).length : 0), [data])
 
@@ -423,6 +472,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addTag,
     editTag,
     deleteTag,
+    addNote,
+    editNote,
+    softDeleteNote,
+    toggleNotePin,
     importLaravelData,
     pendingCount,
     completedCount,

@@ -106,6 +106,8 @@
 .hint-line{margin-top:10px!important}
 .report-tools.filter-card{display:flex;flex-wrap:wrap;align-items:end;gap:12px}
 
+/* Notes page uses Keep styles in shadcn.css */
+
 @media(max-width:680px){
   .sidebar{display:none;position:fixed;z-index:40}
   .sidebar.is-open{display:flex}

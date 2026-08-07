@@ -1,4 +1,5 @@
 import { DevLogData } from '../types'
+import { normalizeData } from '../utils/normalize'
 
 const OWNER = import.meta.env.VITE_GITHUB_OWNER as string
 const REPO = import.meta.env.VITE_GITHUB_REPO as string
@@ -39,7 +40,7 @@ export async function fetchTasksFromGit(token: string) {
   if (res.status === 404) return { notFound: true as const }
   if (!res.ok) throw new Error(`GitHub fetch failed: ${res.status}`)
   const json = await res.json()
-  const data: DevLogData = JSON.parse(decodeBase64(json.content))
+  const data: DevLogData = normalizeData(JSON.parse(decodeBase64(json.content)))
   return { data, sha: json.sha as string }
 }
 

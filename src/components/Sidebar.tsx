@@ -8,6 +8,7 @@ const NAV: { id: string; label: string; symbol: string }[] = [
   { id: 'completed', label: 'Completed', symbol: '✓' },
   { id: 'reports', label: 'Reports', symbol: '▤' },
   { id: 'boards', label: 'Boards', symbol: '▣' },
+  { id: 'notes', label: 'Notes', symbol: '✎' },
   { id: 'search', label: 'Search', symbol: '⌕' },
   { id: 'settings', label: 'Settings', symbol: '⚙' },
 ]
