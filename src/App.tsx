@@ -14,6 +14,7 @@ import Pending from './views/Pending'
 import Completed from './views/Completed'
 import Reports from './views/Reports'
 import Boards from './views/Boards'
+import Notes from './views/Notes'
 import Search from './views/Search'
 import Settings from './views/Settings'
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts'
@@ -72,6 +73,7 @@ export default function App() {
         {view === 'completed' && <Completed onEdit={openEdit} onComplete={setCompleting} />}
         {view === 'reports' && <Reports />}
         {view === 'boards' && <Boards />}
+        {view === 'notes' && <Notes />}
         {view === 'search' && <Search onEdit={openEdit} onComplete={setCompleting} />}
         {view === 'settings' && <Settings />}
       </main>

@@ -9,6 +9,7 @@ export function getLaravelSeed(): DevLogData {
     updatedAt: new Date().toISOString(),
     boards: data.boards || [],
     tags: data.tags || [],
+    notes: Array.isArray(data.notes) ? data.notes : [],
     tasks: (data.tasks || []).map((t) => ({
       ...t,
       description: t.description || '',

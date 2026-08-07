@@ -4,6 +4,17 @@ export type TaskType = 'major_change' | 'minor_change' | 'feature' | 'bug' | 'me
 export interface Board { id: string; name: string; color: string; position: number }
 export interface Tag { id: string; name: string; color: string }
 
+export interface Note {
+  id: string
+  title: string
+  body: string
+  color: string
+  isPinned: boolean
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
 export interface Task {
   id: string
   title: string
@@ -35,6 +46,7 @@ export interface DevLogData {
   boards: Board[]
   tags: Tag[]
   tasks: Task[]
+  notes: Note[]
   importedFrom?: string
   importedAt?: string
 }

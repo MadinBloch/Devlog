@@ -1,4 +1,5 @@
 import { DevLogData } from '../types'
+import { normalizeData } from '../utils/normalize'
 
 const DATA_KEY = 'devlog_data'
 const SHA_KEY = 'devlog_sha'
@@ -9,7 +10,11 @@ const THEME_KEY = 'devlog_theme'
 export function loadLocalData(): DevLogData | null {
   const raw = localStorage.getItem(DATA_KEY)
   if (!raw) return null
-  try { return JSON.parse(raw) as DevLogData } catch { return null }
+  try {
+    return normalizeData(JSON.parse(raw) as DevLogData)
+  } catch {
+    return null
+  }
 }
 
 export function saveLocalData(data: DevLogData) {
