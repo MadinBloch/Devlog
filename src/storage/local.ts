@@ -6,6 +6,48 @@ const SHA_KEY = 'devlog_sha'
 const DIRTY_KEY = 'devlog_dirty'
 const LAST_SYNC_KEY = 'devlog_last_synced'
 const THEME_KEY = 'devlog_theme'
+const SHEET_CFG_KEY = 'devlog_sheet_config'
+
+export type SheetConfig = {
+  spreadsheetUrl: string
+  spreadsheetId: string
+  sheetName: string
+  webAppUrl: string
+  lastUploadAt: string | null
+  /** Headers loaded from sheet row 1 */
+  headers: string[]
+  /** Default for Assigned To–like columns */
+  defaultAssignedTo: string
+  /** Default STATUS when creating a new dynamic row */
+  defaultStatus: string
+}
+
+export function defaultSheetConfig(): SheetConfig {
+  return {
+    spreadsheetUrl: '',
+    spreadsheetId: '',
+    sheetName: 'Sheet1',
+    webAppUrl: '',
+    lastUploadAt: null,
+    headers: [],
+    defaultAssignedTo: 'Madin',
+    defaultStatus: 'To Do',
+  }
+}
+
+export function loadSheetConfig(): SheetConfig {
+  const raw = localStorage.getItem(SHEET_CFG_KEY)
+  if (!raw) return defaultSheetConfig()
+  try {
+    return { ...defaultSheetConfig(), ...JSON.parse(raw) }
+  } catch {
+    return defaultSheetConfig()
+  }
+}
+
+export function saveSheetConfig(cfg: SheetConfig) {
+  localStorage.setItem(SHEET_CFG_KEY, JSON.stringify(cfg))
+}
 
 export function loadLocalData(): DevLogData | null {
   const raw = localStorage.getItem(DATA_KEY)
