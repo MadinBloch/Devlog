@@ -15,6 +15,16 @@ export interface Note {
   deletedAt: string | null
 }
 
+/** One draft/uploaded row for the connected team Google Sheet (dynamic columns) */
+export interface SheetEntry {
+  id: string
+  values: Record<string, string>
+  uploadedAt: string | null
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
 export interface Task {
   id: string
   title: string
@@ -38,6 +48,8 @@ export interface Task {
   createdAt: string
   updatedAt: string
   deletedAt: string | null
+  /** When set, task was already appended to Google Sheet */
+  sheetUploadedAt: string | null
 }
 
 export interface DevLogData {
@@ -47,6 +59,7 @@ export interface DevLogData {
   tags: Tag[]
   tasks: Task[]
   notes: Note[]
+  sheetEntries: SheetEntry[]
   importedFrom?: string
   importedAt?: string
 }

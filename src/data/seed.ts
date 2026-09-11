@@ -10,6 +10,7 @@ export function getLaravelSeed(): DevLogData {
     boards: data.boards || [],
     tags: data.tags || [],
     notes: Array.isArray(data.notes) ? data.notes : [],
+    sheetEntries: Array.isArray((data as DevLogData).sheetEntries) ? (data as DevLogData).sheetEntries : [],
     tasks: (data.tasks || []).map((t) => ({
       ...t,
       description: t.description || '',
@@ -21,6 +22,7 @@ export function getLaravelSeed(): DevLogData {
       isPinned: !!t.isPinned,
       timerStartedAt: null,
       deletedAt: t.deletedAt ?? null,
+      sheetUploadedAt: (t as { sheetUploadedAt?: string | null }).sheetUploadedAt ?? null,
     })),
   }
 }

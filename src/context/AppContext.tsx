@@ -1,11 +1,21 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { DevLogData, Task, Board, Tag, Note } from '../types'
+import { DevLogData, Task, Board, Tag, Note, SheetEntry } from '../types'
 import * as storage from '../storage/local'
+import type { SheetConfig } from '../storage/local'
 import { fetchTasksFromGit, createEmptyFile, pushTasksToGit } from '../api/github'
+import {
+  parseSpreadsheetId,
+  fetchSheetHeaders,
+  appendSheetRows,
+  valuesToRow,
+  valuesToRowMap,
+  mapTaskToSheetValues,
+  sanitizeSheetHeaders,
+} from '../api/sheets'
 import { toast } from '../utils/toast'
 import { pendingTasks, completedTasks } from '../utils/helpers'
 import { getLaravelSeed } from '../data/seed'
-import { normalizeData } from '../utils/normalize'
+import { normalizeData, sheetEntriesPendingUpload } from '../utils/normalize'
 
 type AppCtx = {
   token: string | null
@@ -20,7 +30,10 @@ type AppCtx = {
   logout: () => void
   fetchRemote: (force?: boolean) => Promise<{ ok?: boolean; conflict?: boolean } | void>
   pushLocal: () => Promise<{ ok?: boolean; sha_mismatch?: boolean } | void>
-  addTask: (partial: Partial<Task> & { title: string }) => Task | undefined
+  addTask: (
+    partial: Partial<Task> & { title: string },
+    opts?: { queueForSheet?: boolean; uploadNow?: boolean }
+  ) => Task | undefined
   editTask: (id: string, changes: Partial<Task>) => void
   softDeleteTask: (id: string) => void
   completeTask: (id: string, opts?: { commit?: string; notes?: string; actualHours?: number; completedAt?: string }) => void
@@ -41,6 +54,18 @@ type AppCtx = {
   softDeleteNote: (id: string) => void
   toggleNotePin: (id: string) => void
   importLaravelData: () => void
+  sheetConfig: SheetConfig
+  saveSheetConfig: (cfg: Partial<SheetConfig> & { spreadsheetUrl?: string }) => SheetConfig
+  loadSheetColumns: () => Promise<string[]>
+  addSheetEntry: (values: Record<string, string>) => SheetEntry | undefined
+  editSheetEntry: (id: string, values: Record<string, string>) => void
+  softDeleteSheetEntry: (id: string) => void
+  uploadToSheet: (
+    snapshot?: DevLogData,
+    onlyIds?: string[],
+    opts?: { quiet?: boolean }
+  ) => Promise<{ ok?: boolean; appended?: number } | void>
+  sheetPendingCount: number
   pendingCount: number
   completedCount: number
 }
@@ -59,6 +84,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [theme, setThemeState] = useState<'light' | 'dark'>(storage.getTheme())
   const [search, setSearch] = useState('')
+  const [sheetConfig, setSheetConfig] = useState<SheetConfig>(() => {
+    const cfg = storage.loadSheetConfig()
+    if (cfg.headers?.length) {
+      return { ...cfg, headers: sanitizeSheetHeaders(cfg.headers) }
+    }
+    return cfg
+  })
 
   useEffect(() => {
     document.documentElement.classList.toggle('theme-dark', theme === 'dark')
@@ -85,6 +117,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     storage.saveLocalData(stamped)
     setData(stamped)
     setDirty(true)
+    return stamped
   }
 
   async function loginWithToken(t: string) {
@@ -183,7 +216,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setToken(null)
   }
 
-  function addTask(partial: Partial<Task> & { title: string }) {
+  function addTask(
+    partial: Partial<Task> & { title: string },
+    opts?: { queueForSheet?: boolean; uploadNow?: boolean }
+  ) {
     if (!data) return
     const now = new Date().toISOString()
     const task: Task = {
@@ -209,9 +245,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
+      sheetUploadedAt: null,
     }
-    updateData({ ...data, tasks: [task, ...data.tasks] })
-    toast('Task added', 'success')
+
+    const headers = sheetConfig.headers || []
+    const canSheet = headers.length > 0 && !!sheetConfig.spreadsheetId
+    const queueForSheet = !!opts?.queueForSheet && canSheet
+    let sheetEntries = data.sheetEntries || []
+    let queuedEntryId: string | null = null
+
+    if (queueForSheet) {
+      const values = mapTaskToSheetValues(task, headers, {
+        assignedTo: sheetConfig.defaultAssignedTo || 'Madin',
+        statusTodo: sheetConfig.defaultStatus || 'To Do',
+        statusDone: 'Done',
+      })
+      queuedEntryId = `sentry_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+      const entry: SheetEntry = {
+        id: queuedEntryId,
+        values,
+        uploadedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      }
+      sheetEntries = [entry, ...sheetEntries]
+    }
+
+    const next = updateData({ ...data, tasks: [task, ...data.tasks], sheetEntries })
+
+    if (queueForSheet && opts?.uploadNow && queuedEntryId) {
+      void uploadToSheet(next, [queuedEntryId], { quiet: true })
+        .then((res) => {
+          if (res && 'appended' in res) {
+            toast('Task added · uploaded to Sheet', 'success')
+          }
+        })
+        .catch(() => {
+          toast('Task added · Sheet upload failed (row still pending)', 'error')
+        })
+    } else if (queueForSheet) {
+      toast('Task added · queued for Sheet upload', 'success')
+    } else {
+      toast('Task added', 'success')
+    }
     return task
   }
 
@@ -291,6 +368,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
       deletedAt: null,
       workDate: now.slice(0, 10),
+      sheetUploadedAt: null,
     }
     updateData({ ...data, tasks: [copy, ...data.tasks] })
     toast('Task duplicated', 'success')
@@ -440,8 +518,176 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     editNote(id, { isPinned: !n.isPinned })
   }
 
+  function saveSheetConfig(partial: Partial<SheetConfig> & { spreadsheetUrl?: string }, quiet = false) {
+    const nextUrl = partial.spreadsheetUrl ?? sheetConfig.spreadsheetUrl
+    const parsedId = parseSpreadsheetId(nextUrl) || partial.spreadsheetId || sheetConfig.spreadsheetId
+    const headers =
+      partial.headers !== undefined
+        ? sanitizeSheetHeaders(partial.headers)
+        : sheetConfig.headers
+    const next: SheetConfig = {
+      ...sheetConfig,
+      ...partial,
+      headers,
+      spreadsheetUrl: nextUrl,
+      spreadsheetId: parsedId || '',
+    }
+    storage.saveSheetConfig(next)
+    setSheetConfig(next)
+    if (!quiet) toast('Google Sheet settings saved', 'success')
+    return next
+  }
+
+  async function loadSheetColumns() {
+    if (!sheetConfig.webAppUrl.trim()) {
+      toast('Add Apps Script Web App URL first', 'error')
+      throw new Error('missing webAppUrl')
+    }
+    if (!sheetConfig.spreadsheetId) {
+      toast('Paste a valid Google Sheet link first', 'error')
+      throw new Error('missing spreadsheetId')
+    }
+    setLoading(true)
+    try {
+      const headers = await fetchSheetHeaders({
+        webAppUrl: sheetConfig.webAppUrl,
+        spreadsheetId: sheetConfig.spreadsheetId,
+        sheetName: sheetConfig.sheetName || 'Sheet1',
+      })
+      saveSheetConfig({ headers }, true)
+      toast(`Loaded ${headers.length} columns from Sheet`, 'success')
+      return headers
+    } catch (err: any) {
+      toast(err.message || 'Failed to load columns', 'error')
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function addSheetEntry(values: Record<string, string>) {
+    if (!data) return
+    const now = new Date().toISOString()
+    const entry: SheetEntry = {
+      id: `sentry_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      values: { ...values },
+      uploadedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    }
+    updateData({
+      ...data,
+      sheetEntries: [entry, ...(data.sheetEntries || [])],
+    })
+    toast('Sheet row saved (pending upload)', 'success')
+    return entry
+  }
+
+  function editSheetEntry(id: string, values: Record<string, string>) {
+    if (!data) return
+    const now = new Date().toISOString()
+    updateData({
+      ...data,
+      sheetEntries: (data.sheetEntries || []).map((e) =>
+        e.id === id ? { ...e, values: { ...values }, updatedAt: now, uploadedAt: null } : e
+      ),
+    })
+  }
+
+  function softDeleteSheetEntry(id: string) {
+    if (!data) return
+    const now = new Date().toISOString()
+    updateData({
+      ...data,
+      sheetEntries: (data.sheetEntries || []).map((e) =>
+        e.id === id ? { ...e, deletedAt: now, updatedAt: now } : e
+      ),
+    })
+    toast('Sheet row removed', 'info')
+  }
+
+  async function uploadToSheet(
+    snapshot?: DevLogData,
+    onlyIds?: string[],
+    opts?: { quiet?: boolean }
+  ) {
+    const source = snapshot || data
+    if (!source) return
+    if (!sheetConfig.webAppUrl.trim()) {
+      toast('Add Apps Script Web App URL in Settings → Google Sheet', 'error')
+      return
+    }
+    if (!sheetConfig.spreadsheetId) {
+      toast('Paste a valid Google Sheet link in Settings', 'error')
+      return
+    }
+
+    let pending = sheetEntriesPendingUpload(source.sheetEntries)
+    if (onlyIds?.length) {
+      const idSet = new Set(onlyIds)
+      pending = pending.filter((e) => idSet.has(e.id))
+    }
+    if (!pending.length) {
+      if (!opts?.quiet) toast('No pending sheet rows to upload', 'info')
+      return { ok: true, appended: 0 }
+    }
+
+    setLoading(true)
+    try {
+      // Always re-read Sheet row-1 so column order matches the real spreadsheet
+      const headers = await fetchSheetHeaders({
+        webAppUrl: sheetConfig.webAppUrl,
+        spreadsheetId: sheetConfig.spreadsheetId,
+        sheetName: sheetConfig.sheetName || 'Sheet1',
+      })
+      saveSheetConfig({ headers }, true)
+
+      const rowMaps = pending.map((e) => valuesToRowMap(headers, e.values))
+      const rows = pending.map((e) => valuesToRow(headers, e.values))
+      const res = await appendSheetRows({
+        webAppUrl: sheetConfig.webAppUrl,
+        spreadsheetId: sheetConfig.spreadsheetId,
+        sheetName: sheetConfig.sheetName || 'Sheet1',
+        headers,
+        rows,
+        rowMaps,
+        skipDuplicates: false,
+      })
+
+      const now = new Date().toISOString()
+      const uploadedIds = new Set(pending.map((e) => e.id))
+      updateData({
+        ...source,
+        sheetEntries: (source.sheetEntries || []).map((e) =>
+          uploadedIds.has(e.id) ? { ...e, uploadedAt: now, updatedAt: now } : e
+        ),
+      })
+
+      const cfg = {
+        ...sheetConfig,
+        headers,
+        lastUploadAt: now,
+      }
+      storage.saveSheetConfig(cfg)
+      setSheetConfig(cfg)
+
+      if (!opts?.quiet) toast(`Uploaded ${res.appended} row(s) to Sheet`, 'success')
+      return { ok: true, appended: res.appended }
+    } catch (err: any) {
+      if (!opts?.quiet) toast(err.message || 'Sheet upload failed', 'error')
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const pendingCount = useMemo(() => (data ? pendingTasks(data.tasks).length : 0), [data])
   const completedCount = useMemo(() => (data ? completedTasks(data.tasks).length : 0), [data])
+  const sheetPendingCount = useMemo(
+    () => (data ? sheetEntriesPendingUpload(data.sheetEntries).length : 0),
+    [data]
+  )
 
   const value: AppCtx = {
     token,
@@ -477,6 +723,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     softDeleteNote,
     toggleNotePin,
     importLaravelData,
+    sheetConfig,
+    saveSheetConfig,
+    loadSheetColumns,
+    addSheetEntry,
+    editSheetEntry,
+    softDeleteSheetEntry,
+    uploadToSheet,
+    sheetPendingCount,
     pendingCount,
     completedCount,
   }

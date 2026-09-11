@@ -9,6 +9,7 @@ const NAV: { id: string; label: string; symbol: string }[] = [
   { id: 'reports', label: 'Reports', symbol: '▤' },
   { id: 'boards', label: 'Boards', symbol: '▣' },
   { id: 'notes', label: 'Notes', symbol: '✎' },
+  { id: 'sheet', label: 'Sheet Form', symbol: '▤' },
   { id: 'search', label: 'Search', symbol: '⌕' },
   { id: 'settings', label: 'Settings', symbol: '⚙' },
 ]
@@ -24,7 +25,7 @@ export default function Sidebar({
   open?: boolean
   onClose?: () => void
 }) {
-  const { pendingCount, completedCount, theme, setTheme } = useApp()
+  const { pendingCount, completedCount, sheetPendingCount, theme, setTheme } = useApp()
 
   return (
     <>
@@ -50,6 +51,7 @@ export default function Sidebar({
               {item.label}
               {item.id === 'pending' && pendingCount > 0 && <b>{pendingCount}</b>}
               {item.id === 'completed' && completedCount > 0 && <b>{completedCount}</b>}
+              {item.id === 'sheet' && sheetPendingCount > 0 && <b>{sheetPendingCount}</b>}
             </button>
           ))}
         </nav>

@@ -15,6 +15,7 @@ import Completed from './views/Completed'
 import Reports from './views/Reports'
 import Boards from './views/Boards'
 import Notes from './views/Notes'
+import SheetForm from './views/SheetForm'
 import Search from './views/Search'
 import Settings from './views/Settings'
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts'
@@ -74,6 +75,7 @@ export default function App() {
         {view === 'reports' && <Reports />}
         {view === 'boards' && <Boards />}
         {view === 'notes' && <Notes />}
+        {view === 'sheet' && <SheetForm />}
         {view === 'search' && <Search onEdit={openEdit} onComplete={setCompleting} />}
         {view === 'settings' && <Settings />}
       </main>

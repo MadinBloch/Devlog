@@ -13,7 +13,8 @@ export default function Header({
   onOpenSearch?: () => void
   onToggleNav?: () => void
 }) {
-  const { fetchRemote, pushLocal, dirty, loading, search, setSearch, logout } = useApp()
+  const { fetchRemote, pushLocal, dirty, loading, search, setSearch, logout, uploadToSheet, sheetPendingCount, sheetConfig } =
+    useApp()
 
   async function handleFetch() {
     if (dirty && !confirm('Unsaved local changes will be overwritten. Continue?')) return
@@ -28,6 +29,28 @@ export default function Header({
     if (!dirty && !confirm('No local changes. Force push anyway?')) return
     try {
       await pushLocal()
+    } catch {
+      /* toasted */
+    }
+  }
+
+  async function handleSheetUpload() {
+    if (!sheetConfig.webAppUrl) {
+      alert('Open Settings → Google Sheet, paste Sheet link + Apps Script URL, then use Sheet Form.')
+      return
+    }
+    if (!sheetConfig.headers?.length) {
+      alert('Open Sheet Form → Load columns first (reads your Sheet headers).')
+      return
+    }
+    const n = sheetPendingCount
+    if (!n) {
+      alert('No pending sheet rows. Add rows in Sheet Form, then Upload.')
+      return
+    }
+    if (!confirm(`Upload ${n} row(s) to Google Sheet?`)) return
+    try {
+      await uploadToSheet()
     } catch {
       /* toasted */
     }
@@ -71,6 +94,15 @@ export default function Header({
           title="Push to GitHub"
         >
           ↑ Sync
+        </button>
+        <button
+          type="button"
+          className={`soft-btn ${sheetPendingCount ? 'sync-hot' : ''}`}
+          onClick={handleSheetUpload}
+          disabled={loading}
+          title="Append new tasks to Google Sheet"
+        >
+          ↑ Sheet{sheetPendingCount > 0 ? ` ${sheetPendingCount}` : ''}
         </button>
         <button type="button" className="soft-btn header-timer-btn" onClick={onOpenTimer}>
           ⏱ Timer
